@@ -1,17 +1,13 @@
 package com.example.lab3.service;
 
-import com.example.lab3.dto.OrderDto;
-import com.example.lab3.dto.OrderItemDto;
-import com.example.lab3.entity.Order;
-import com.example.lab3.entity.OrderItem;
-import com.example.lab3.entity.Product;
-import com.example.lab3.repository.OrderRepository;
-import com.example.lab3.repository.ProductRepository;
+import com.example.lab3.entity.*;
+import com.example.lab3.repository.*;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -21,48 +17,39 @@ public class OrderService {
 
     private final OrderRepository orderRepo;
     private final ProductRepository productRepo;
+    private final UserRepository userRepo; // <-- Nouveau
+
 
     @Transactional
-    public OrderDto create(OrderDto dto) {
+    public Order createOrder(String username, List<Long> productIds) {
+        User user = userRepo.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("User not found"));
 
         Order order = new Order();
+        order.setUser(user);
+        order.setOrderDate(LocalDateTime.now());
+
         List<OrderItem> items = new ArrayList<>();
-
-
-        for (OrderItemDto itemDto : dto.items()) {
-
-            Product product = productRepo.findById(itemDto.productId())
-                    .orElseThrow(() -> new EntityNotFoundException("Product not found with id: " + itemDto.productId()));
-
+        for (Long productId : productIds) {
+            Product product = productRepo.findById(productId)
+                    .orElseThrow(() -> new EntityNotFoundException("Product not found"));
 
             OrderItem item = new OrderItem();
             item.setProduct(product);
-            item.setQuantity(itemDto.quantity());
+            item.setQuantity(1);
             item.setOrder(order);
-
             items.add(item);
         }
-
-
         order.setItems(items);
-        order.setOrderDate(java.time.LocalDateTime.now());
-
-
-        Order savedOrder = orderRepo.save(order);
-
-        return mapToDto(savedOrder);
+        return orderRepo.save(order);
     }
 
-    public OrderDto findById(Long id) {
-        Order order = orderRepo.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Order not found"));
-        return mapToDto(order);
+
+    public List<Order> findAll() { return orderRepo.findAll(); }
+
+    public List<Order> findByUsername(String username) {
+        return orderRepo.findByUserUsername(username);
     }
 
-    private OrderDto mapToDto(Order order) {
-        List<OrderItemDto> itemDtos = order.getItems().stream()
-                .map(item -> new OrderItemDto(item.getId(), item.getProduct().getId(), item.getQuantity()))
-                .toList();
-        return new OrderDto(order.getId(), order.getOrderDate(), itemDtos);
-    }
+    public void delete(Long id) { orderRepo.deleteById(id); }
 }

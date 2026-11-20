@@ -1,28 +1,42 @@
 package com.example.lab3.controller;
 
-import com.example.lab3.dto.OrderDto;
+import com.example.lab3.dto.OrderRequest;
+import com.example.lab3.entity.Order;
 import com.example.lab3.service.OrderService;
-import jakarta.validation.Valid;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/orders")
-@RequiredArgsConstructor
 public class OrderController {
 
     private final OrderService orderService;
 
-    @PostMapping
-    public ResponseEntity<OrderDto> create(@Valid @RequestBody OrderDto dto) {
-        OrderDto created = orderService.create(dto);
-        return new ResponseEntity<>(created, HttpStatus.CREATED);
+    public OrderController(OrderService orderService) {
+        this.orderService = orderService;
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<OrderDto> get(@PathVariable Long id) {
-        return ResponseEntity.ok(orderService.findById(id));
+    @GetMapping
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    public List<Order> list(@AuthenticationPrincipal UserDetails user) {
+        if (user.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"))) {
+            return orderService.findAll();
+        }
+        return orderService.findByUsername(user.getUsername());
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('USER')")
+    public Order create(@AuthenticationPrincipal UserDetails user, @RequestBody OrderRequest req) {
+        return orderService.createOrder(user.getUsername(), req.getProductIds());
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void delete(@PathVariable Long id) {
+        orderService.delete(id);
     }
 }
